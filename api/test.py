@@ -10,7 +10,7 @@ bedobj = BedFile(bedfilename, reference_genome, flank_length)
 chr_list, start_list, end_list = bedobj.extractIntervals()
 print(chr_list[0], start_list[0], end_list[0])
 
-#use pybedtools to read in batches from the fasta_file
+use pybedtools to read in batches from the fasta_file
 fasta_fn = '/data/seq2seq-data/' + reference_genome + '.fa'
 batch_size = 10
 batch_bed = BedTool(bedobj.slopped[0:batch_size])
@@ -18,6 +18,8 @@ batched_fasta = open(batch_bed.sequence(fi = example_filename(fasta_fn)).seqfn).
 print(batched_fasta)
 
 #fasta_api SeqIO is too slow -- need to fix, or use above pybedtools reader
-#api = fasta.fasta_api('/data/seq2seq-data/'+ reference_genome +'.fa')
-#x = api.get_batch(chr_list[0:128],start_list[0:128],end_list[0:128])
-#print(x.shape)
+print("loading api")
+api = fasta.fasta_api('/data/seq2seq-data/'+ reference_genome +'.fa')
+print("getting sequences")
+x = api.get_batch(chr_list[0:128],start_list[0:128],end_list[0:128])
+print(x.shape)

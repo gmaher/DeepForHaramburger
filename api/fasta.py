@@ -9,7 +9,7 @@ class fasta_api:
         """
         self.filename = filename
 
-        self.fa_dict = SeqIO.index(filename,'fasta')
+        self.fa_dict = SeqIO.to_dict(SeqIO.parse(filename,'fasta'))
 
         bp_map = {}
         bp_map['N'] = [0,0,0,0]
