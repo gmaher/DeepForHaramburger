@@ -1,6 +1,7 @@
 import fasta
 from BedFile import BedFile
 from pybedtools import BedTool, example_filename
+import bigwig
 
 #BedFile test
 reference_genome = 'hg19'
@@ -23,3 +24,13 @@ api = fasta.fasta_api('/data/seq2seq-data/'+ reference_genome +'.fa')
 print("getting sequences")
 x = api.get_batch(chr_list[0:128],start_list[0:128],end_list[0:128])
 print(x.shape)
+
+# BigWig test
+print("building BW reader")
+sampleBwFile = ("/data/seq2seq-data/GM12878_cells/signal/macs2/rep1/"
+                "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
+                "DNase-seq.merged.20bp.filt.50m.pf.fc.signal.bigwig")
+bw_reader = bigwig.bigwig_reader(sampleBwFile)
+print("Getting BW sequences")
+bw_batch = bw_reader.get_batch(chr_list[:128], start_list[:128], end_list[:128])
+print(bw_batch.shape)
