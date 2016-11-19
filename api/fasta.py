@@ -1,7 +1,7 @@
 from Bio import SeqIO
 import numpy as np
 
-class fasta_api:
+class FastaApi:
     """Wrapper to act as an api to a fasta file
     """
     def __init__(self,filename):
@@ -9,39 +9,40 @@ class fasta_api:
         """
         self.filename = filename
 
-        self.fa_dict = SeqIO.to_dict(SeqIO.parse(filename,'fasta'))
+        self.faDict = SeqIO.to_dict(SeqIO.parse(filename,'fasta'))
 
-        bp_map = {}
-        bp_map['N'] = [0,0,0,0]
-        bp_map['A'] = [1,0,0,0]
-        bp_map['T'] = [0,1,0,0]
-        bp_map['C'] = [0,0,1,0]
-        bp_map['G'] = [0,0,0,1]
-        bp_map['a'] = bp_map['A']
-        bp_map['t'] = bp_map['T']
-        bp_map['c'] = bp_map['C']
-        bp_map['g'] = bp_map['G']
-        bp_map['n'] = bp_map['N']
-        self.bp_map = bp_map
+        bpMap = {}
+        bpMap['N'] = [0,0,0,0]
+        bpMap['A'] = [1,0,0,0]
+        bpMap['T'] = [0,1,0,0]
+        bpMap['C'] = [0,0,1,0]
+        bpMap['G'] = [0,0,0,1]
+        bpMap['a'] = bpMap['A']
+        bpMap['t'] = bpMap['T']
+        bpMap['c'] = bpMap['C']
+        bpMap['g'] = bpMap['G']
+        bpMap['n'] = bpMap['N']
+        self.bpMap = bpMap
 
-    def get_batch(self, chr_list, start_list, end_list):
+    def getBatch(self, chrList, startList, endList):
         """Return a batch of one-hot encoded dna sequences
 
         Args:
-            chr_list (list): List of chromosome strings (e.g. 'chr3')
-            start_list (list): List of start positions
-            end_list (list): List of end positions
+            chrList (list): List of chromosome strings (e.g. 'chr3')
+            startList (list): List of start positions
+            endList (list): List of end positions
 
         Returns:
             numpy array, shape = (N,L,4), L = sequence length
 
         Note:
-            chr_list, start_list and end_list all must have same length
+            chrList, startList and endList all must have same length
         """
-        seq_list = [self.get_seq_start_end(c,s,e) for c,s,e in zip(chr_list,start_list,end_list)]
-        return np.asarray(seq_list)
+        seqList = [self.getSeqStartEnd(c,s,e)
+                for c,s,e in zip(chrList,startList,endList)]
+        return np.asarray(seqList)
 
-    def get_seq_string(self,chromosome, midpoint,length):
+    def getSeqString(self,chromosome, midpoint,length):
         """Returns the one-hot encoded DNA sequence for a particular chromosome
         and midpoint and sequence length
 
@@ -50,13 +51,13 @@ class fasta_api:
         """
         start = midpoint - length/2
         end = midpoint + length/2
-        return self.get_seq_start_end(chromosome,start,end)
+        return self.getSeqStartEnd(chromosome,start,end)
 
-    def get_seq_start_end(self, chromosome, start, end):
+    def getSeqStartEnd(self, chromosome, start, end):
         """Returns the one-hot encoded DNA sequence for a particular chromosome
         and start end location
         """
-        seq = self.fa_dict[chromosome][start:end]
+        seq = self.faDict[chromosome][start:end]
 
-        one_hot = [self.bp_map[bp] for bp in seq]
-        return one_hot
+        oneHot = [self.bpMap[bp] for bp in seq]
+        return oneHot
