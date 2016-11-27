@@ -2,7 +2,7 @@ import bedfile
 import bigwig
 import fasta
 import random
-
+import numpy as np
 class DataReader:
     def __init__(self, bedfilename, referenceGenome, flankLength,
             fastaFilename, bigwigFilename):
@@ -32,4 +32,27 @@ class DataReader:
         endBatch = [self.endList[idx] for idx in idxs]
         X = self.fasta.getBatch(chrBatch, startBatch, endBatch)
         y = self.bigwig.getBatch(chrBatch, startBatch, endBatch)
+        y[np.isnan(y)] = 0.0
+        return (X, y)
+
+    def getChromosome(self,chrs, exclude=False):
+        """ Returns all the sequences coming from a list of chromosomes
+
+        Args:
+            chrs    list of strings of chromosome names
+            exclude boolean, whether to select for the provided chromosome, or
+            all chromosomes except the provided one
+        """
+        if exclude:
+            idxs = [i for i in range(self.nSeqs) if\
+                not any(self.chrList[i]==chro for chro in chrs)]
+        else:
+            idxs = [i for i in range(self.nSeqs) if\
+                any(self.chrList[i]==chro for chro in chrs)]
+        chrBatch = [self.chrList[idx] for idx in idxs]
+        startBatch = [self.startList[idx] for idx in idxs]
+        endBatch = [self.endList[idx] for idx in idxs]
+        X = self.fasta.getBatch(chrBatch, startBatch, endBatch)
+        y = self.bigwig.getBatch(chrBatch, startBatch, endBatch)
+        y[np.isnan(y)] = 0.0
         return (X, y)

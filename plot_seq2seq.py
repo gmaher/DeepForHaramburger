@@ -40,3 +40,23 @@ plt.show()
 plt.figure()
 plt.plot(y[:10].T)
 plt.show()
+
+#square root transform
+y = y/np.max(y)
+plt.figure()
+plt.hist(np.ravel(np.sqrt(y)),bins=50)
+plt.show()
+
+plt.figure()
+plt.plot(np.sqrt(y[:10].T))
+plt.show()
+
+#asinh + square root transform
+y = y/np.max(y)
+plt.figure()
+plt.hist(np.ravel(np.arcsinh(np.sqrt(y))),bins=50)
+plt.show()
+
+plt.figure()
+plt.plot(np.arcsinh(np.sqrt(y[:10].T)))
+plt.show()
