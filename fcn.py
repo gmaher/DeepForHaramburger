@@ -8,17 +8,16 @@ import argparse
 import numpy as np
 
 from keras.models import Model
-from keras.layers import Input, Convolution2D, BatchNormalization, Dense, merge
+from keras.layers import Input, Convolution2D, Convolution1D, BatchNormalization, Dense, merge
 from keras.layers import Reshape, Flatten, UpSampling2D
 from keras.layers import MaxPooling2D, Activation
 from keras.optimizers import Adam
 from keras.regularizers import l2
 
-def reshapeAndNormalize(X,y, C):
-    X = X.reshape((X.shape[0],X.shape[1],X.shape[2],1))
+def normalize(y, C):
     y = np.sqrt(y/C)
-    y = y.reshape((y.shape[0],y.shape[1],1,1))
-    return (X,y)
+    y = y.reshape((y.shape[0],y.shape[1],1))
+    return y
 
 parser = argparse.ArgumentParser()
 parser.add_argument('seq2seq_dir')
@@ -43,19 +42,19 @@ reader = DataReader(bedfilename, referenceGenome, flankLength, fastaFname,
 Xtrain,ytrain = reader.getChromosome(['chr6','chr7','chr8'], exclude=True)
 C = np.max(ytrain)
 #C=1
-Xtrain,ytrain = reshapeAndNormalize(Xtrain,ytrain,C)
+ytrain = normalize(ytrain,C)
 print("Xtrain shape = {}, ytrain shape = {}".format(Xtrain.shape,ytrain.shape))
 
 Xval,yval = reader.getChromosome(['chr6'])
-Xval,yval = reshapeAndNormalize(Xval,yval,C)
+yval = normalize(yval,C)
 print("Xval shape = {}, yval shape = {}".format(Xval.shape,yval.shape))
 
 Xtest,ytest = reader.getChromosome(['chr7','chr8'])
-Xtest,ytest = reshapeAndNormalize(Xtest,ytest,C)
+ytest = normalize(ytest,C)
 print("Xtest shape = {}, ytest shape = {}".format(Xtest.shape,ytest.shape))
 
 #Create neural network
-def FCN(input_shape=(800,4,1), Nfilters=32, Wfilter=3,num_conv=3,
+def FCN(input_shape=(800,4), Nfilters=32, Wfilter=3,num_conv=3,
 output_channels=1, output_width=1, output_height=4,
 output_activation='sigmoid', l2_reg=0.0):
     '''
@@ -63,23 +62,23 @@ output_activation='sigmoid', l2_reg=0.0):
     '''
     x = Input(shape=input_shape)
 
-    d = Convolution2D(Nfilters,Wfilter,Wfilter,activation='relu',
+    d = Convolution1D(Nfilters,Wfilter,input_dim=4,activation='relu',
     border_mode='same', W_regularizer=l2(l2_reg), b_regularizer=l2(l2_reg))(x)
     d = BatchNormalization(mode=2)(d)
 
     for i in range(0,num_conv):
-        d = Convolution2D(Nfilters,Wfilter,Wfilter,activation='relu',
+        d = Convolution1D(Nfilters,Wfilter,input_dim=4,activation='relu',
         border_mode='same', W_regularizer=l2(l2_reg), b_regularizer=l2(l2_reg))(d)
         d = BatchNormalization(mode=2)(d)
 
-    d = Convolution2D(output_channels,
-    output_width,output_height,activation=output_activation, border_mode='valid',
+    d = Convolution1D(output_channels,Wfilter,
+    input_dim=4,activation=output_activation, border_mode='same',
     W_regularizer=l2(l2_reg), b_regularizer=l2(l2_reg))(d)
 
     FCN = Model(x,d)
     return FCN
 
-input_shape = (2*flankLength+1,4,1)
+input_shape = (2*flankLength+1,4)
 Nfilters = 32
 Wfilter = 3
 num_conv=5
