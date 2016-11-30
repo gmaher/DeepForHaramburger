@@ -28,8 +28,6 @@ class BedFile:
         self.slopped = midpoints.slop(b=self.flankLength, g=chrom)
 
         self.startvals = [int(x[1]) for x in self.slopped]
-        self.endvals = [int(x[2]) for x in self.slopped]
+        self.endvals = [int(x[2])-1 for x in self.slopped]
 
         return self.chromosomes, self.startvals, self.endvals
-
-
