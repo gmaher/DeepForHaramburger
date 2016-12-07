@@ -6,6 +6,7 @@ from api.data import DataReader
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
+import os
 
 from keras.models import Model
 from keras.layers import Input, Convolution1D, BatchNormalization, Dense, merge
@@ -14,23 +15,27 @@ from keras.layers import AveragePooling1D, UpSampling1D, Activation
 from keras.optimizers import Adam
 from keras.regularizers import l2
 
+parser = argparse.ArgumentParser()
+parser.add_argument('flankLength')
+parser.add_argument('model')
+parser.add_argument('seq2seq_dir')
+
+args = parser.parse_args()
+
+dataDir = args.seq2seq_dir
+flankLength = int(args.flankLength)
+model_str = args.model
+
 def normalize(y, C):
     y = np.sqrt(y/C)
     y = y.reshape((y.shape[0],y.shape[1],1))
     return y
-
-parser = argparse.ArgumentParser()
-parser.add_argument('seq2seq_dir')
-args = parser.parse_args()
-
-dataDir = args.seq2seq_dir
 
 bedfilename = (dataDir+"GM12878_cells/peak/macs2/overlap/"
                 "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
                 "DNase-seq.merged.20bp.filt.50m.pf.pval0.1.500000."
                 "naive_overlap.narrowPeak.gz")
 referenceGenome = 'hg19'
-flankLength = 400
 fastaFname = dataDir+"hg19.fa"
 bigwigFname = (dataDir+"GM12878_cells/signal/macs2/rep1/"
                 "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
@@ -117,18 +122,44 @@ num_conv=2,output_channels=1, output_activation='sigmoid', pool_length=2, l2_reg
 
 input_shape = (2*flankLength,4)
 Nfilters = 32
-Wfilter = 3
+Wfilter = 5
 num_conv=2
-num_layers = 4
+num_layers = 8
 l2_reg=0
 lr = 1e-3
 opt = Adam(lr=lr)
-batch_size=32
-nb_epoch = 5
+batch_size=256
+nb_epoch = 1
 
-#net = FCN(input_shape,Nfilters,Wfilter,num_conv,l2_reg=l2_reg)
-net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv)
+if model_str == "fcn":
+    net = FCN(input_shape,Nfilters,Wfilter,num_conv,l2_reg=l2_reg)
+if model_str == "msfcn":
+    net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv)
+
 net.compile(optimizer=opt,loss='mse')
 
 net.fit(Xtrain,ytrain, batch_size=batch_size, nb_epoch=nb_epoch,
 validation_data=(Xval,yval))
+
+net.save('./models/{}_{}.h5'.format(model_str,flankLength))
+
+yhat = net.predict(Xval)
+loss = net.evaluate(Xval,yval)
+
+np.save("./predictions/{}_FL{}".format(model_str,flankLength),yhat)
+
+#plot a random selection of sequences
+if not os.path.exists('./plots/{}'.format(flankLength)):
+    os.makedirs('./plots/{}'.format(flankLength))
+
+plot_ids = np.random.choice(yval.shape[0],50)
+for i in plot_ids:
+    plt.figure()
+    plt.plot(yval[i], label='truth')
+    plt.plot(yhat[i], label='prediction')
+    plt.legend()
+    plt.savefig('./plots/{}/{}'.format(flankLength,i))
+
+f = open('mse.txt','w+')
+f.write('{},{},{},{},{},{}\n'.format(model_str, flankLength,num_layers,Nfilters,Wfilter, loss))
+f.close()

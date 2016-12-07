@@ -1,2 +1,5 @@
 api/__pycache__
 *.png
+predictions/*
+plots/*
+models/*
