@@ -30,10 +30,12 @@ class DataReader:
         for x in self.chroms:
             self.chr_sizes[x] = len(self.fasta.faDict[x])
 
-    def getBatch(self, batchSize=10):
+    def getBatch(self, batchSize=10, exclude_chrs=[]):
         """ Returns the FASTA sequence and BigWig signal for a batch of size
         batchSize randomly sampled from this reader's set of sequences. """
-        idxs = [random.randint(0, self.nSeqs) for _ in range(batchSize)]
+        idxs = [random.randint(0, self.nSeqs-1) for _ in range(batchSize)]
+        idxs = [i for i in idxs if not any(self.chrList[i]==chr for chr in exclude_chrs)]
+
         chrBatch = [self.chrList[idx] for idx in idxs]
         startBatch = [self.startList[idx] for idx in idxs]
         endBatch = [self.endList[idx] for idx in idxs]
@@ -42,20 +44,23 @@ class DataReader:
         y[np.isnan(y)] = 0.0
         return (X, y)
 
-    def getNegativeBatch(self, batchSize=10):
+    def getNegativeBatch(self, batchSize=10, exclude_chrs=[]):
         """returns FASTA sequence and BigWig signal for a batch of indices
         sampled from arbitrary parts of the genome"""
-        idxs = [random.randint(0,len(self.chroms)-1) for i in range(batchSize)]
-        chrBatch = [self.chroms[i] for i in idxs]
-        startBatch = [random.randint(0,self.chr_sizes[x]-self.flankLength) for x in chrBatch]
-        endBatch = [startBatch[i]+self.flankLength for i in range(0,len(startBatch))]
+        chroms = self.chroms[:]
+        for c in exclude_chrs:
+            chroms.remove(c)
+        idxs = [random.randint(0,len(chroms)-1) for i in range(batchSize)]
+        chrBatch = [chroms[i] for i in idxs]
+        startBatch = [random.randint(0,self.chr_sizes[x]-2*self.flankLength) for x in chrBatch]
+        endBatch = [startBatch[i]+2*self.flankLength for i in range(0,len(startBatch))]
 
         X = self.fasta.getBatch(chrBatch, startBatch, endBatch)
         y = self.bigwig.getBatch(chrBatch, startBatch, endBatch)
         y[np.isnan(y)] = 0.0
         return (X, y)
 
-    def getChromosome(self,chrs, exclude=False):
+    def getChromosome(self,chrs, exclude=False, negative=False):
         """ Returns all the sequences coming from a list of chromosomes
 
         Args:
@@ -70,8 +75,12 @@ class DataReader:
             idxs = [i for i in range(self.nSeqs) if\
                 any(self.chrList[i]==chro for chro in chrs)]
         chrBatch = [self.chrList[idx] for idx in idxs]
-        startBatch = [self.startList[idx] for idx in idxs]
-        endBatch = [self.endList[idx] for idx in idxs]
+        if negative:
+            startBatch = [random.randint(0,self.chr_sizes[x]-2*self.flankLength) for x in chrBatch]
+            endBatch = [startBatch[i]+2*self.flankLength for i in range(0,len(startBatch))]
+        else:
+            startBatch = [self.startList[idx] for idx in idxs]
+            endBatch = [self.endList[idx] for idx in idxs]
         X = self.fasta.getBatch(chrBatch, startBatch, endBatch)
         y = self.bigwig.getBatch(chrBatch, startBatch, endBatch)
         y[np.isnan(y)] = 0.0

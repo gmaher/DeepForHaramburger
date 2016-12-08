@@ -29,7 +29,7 @@ reader = DataReader(bedfilename, referenceGenome, flankLength, fastaFname,
         bigwigFname)
 
 X,y = reader.getBatch(10000)
-Xneg,yneg = reader.getNegativeBatch(10000)
+Xneg,yneg = reader.getChromosome(['chr6'],False,True)
 def plotxy(X,y):
     print(X.shape)
     print(y.shape)
