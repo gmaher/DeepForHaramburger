@@ -4,9 +4,17 @@ sys.path.append(os.path.abspath('./api'))
 print(sys.path)
 
 from api.data import DataReader
+import matplotlib
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
+
+# font = {'family' : 'normal',
+#         'weight' : 'bold',
+#         'size'   : 22}
+#
+# matplotlib.rc('font', **font)
+# matplotlib.rc('figure',**{'autolayout':True})
 
 parser = argparse.ArgumentParser()
 parser.add_argument('seq2seq_dir')
@@ -33,30 +41,48 @@ X,y = reader.getBatch(10000)
 print(X.shape)
 print(y.shape)
 
-plt.figure()
+#plt.figure()
 plt.hist(np.ravel(y),bins=50)
+plt.ylabel('no. occurences')
+plt.xlabel('DHS value')
+#plt.tight_layout()
 plt.show()
 
-plt.figure()
-plt.plot(y[:10].T)
+#plt.figure()
+plt.plot(y[:10].T,linewidth=2)
+plt.ylabel('DHS value')
+plt.xlabel('sequence position')
+#plt.tight_layout()
 plt.show()
 
 #square root transform
 y = y/np.max(y)
 plt.figure()
 plt.hist(np.ravel(np.sqrt(y)),bins=50)
+plt.ylabel('no. occurences')
+plt.xlabel('DHS value')
+#plt.tight_layout()
 plt.show()
 
-plt.figure()
-plt.plot(np.sqrt(y[:10].T))
+#plt.figure()
+plt.plot(np.sqrt(y[:10].T),linewidth=2)
+plt.ylabel('DHS value')
+plt.xlabel('sequence position')
+#plt.tight_layout()
 plt.show()
 
 #asinh + square root transform
 y = y/np.max(y)
-plt.figure()
-plt.hist(np.ravel(np.arcsinh(np.sqrt(y))),bins=50)
+#plt.figure()
+plt.hist(np.ravel(np.sqrt(y)),bins=50)
+plt.ylabel('no. occurences')
+plt.xlabel('DHS value')
+#plt.tight_layout()
 plt.show()
 
-plt.figure()
-plt.plot(np.arcsinh(np.sqrt(y[:10].T)))
+#plt.figure()
+plt.plot(np.sqrt(y[:10].T),linewidth=2)
+plt.ylabel('DHS value')
+plt.xlabel('sequence position')
+#plt.tight_layout()
 plt.show()
