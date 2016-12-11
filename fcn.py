@@ -36,18 +36,26 @@ def normalize(y, C):
     y = y.reshape((y.shape[0],y.shape[1],1))
     return y
 
+def getFullBatch(chrs):
+    xpos,ypos = reader.getBatch(batch_size,chrs)
+    xneg,yneg = reader.getNegativeBatch(batch_size,chrs)
+    X = np.vstack((xpos,xneg))
+    Y = np.vstack((ypos,yneg))
+    Y = Y.reshape((Y.shape[0],Y.shape[1],1))
+    Y = np.sqrt(Y/C)
+    return X,Y
 
 Nfilters = int(params['Nfilters'])
 Wfilter = int(params['Wfilter'])
 num_conv= int(params['num_conv'])
 num_layers = int(params['num_layers'])
-l2_reg= int(params['l2_reg'])
+l2_reg= float(params['l2_reg'])
 lr = float(params['lr'])
 opt = Adam(lr=lr)
 batch_size=int(params['batch_size'])
 nb_epoch = int(params['nb_epoch'])
-Niter = int(1e3)
-print_step = int(1e1)
+Niter = int(2e3)
+print_step = int(5e1)
 flankLength = int(params['flankLength'])
 model_str = params['model']
 input_shape = (2*flankLength,4)
@@ -158,7 +166,7 @@ num_conv=2,output_channels=1, output_activation='sigmoid', pool_length=2, l2_reg
 if model_str == "fcn":
     net = FCN(input_shape,Nfilters,Wfilter,num_conv,l2_reg=l2_reg)
 if model_str == "msfcn":
-    net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv)
+    net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv, l2_reg=l2_reg)
 
 net.compile(optimizer=opt,loss='mse')
 
@@ -167,19 +175,16 @@ net.fit(Xtrain,ytrain, batch_size=batch_size, nb_epoch=nb_epoch,
 validation_data=(Xval,yval))
 
 loss = []
+val_loss = []
 for i in range(Niter):
     #sample positive and negative batch
-    xpos,ypos = reader.getBatch(batch_size,['chr6','chr7','chr8'])
-    xneg,yneg = reader.getNegativeBatch(batch_size,['chr6','chr7','chr8'])
-    X = np.vstack((xpos,xneg))
-    Y = np.vstack((ypos,yneg))
-    Y = Y.reshape((Y.shape[0],Y.shape[1],1))
-    Y = np.sqrt(Y/C)
+    X,Y = getFullBatch(['chr6','chr7','chr8'])
     l = net.train_on_batch(X,Y)
-
+    loss.append(l)
     if i%print_step == 0:
         print("loss = {}".format(l))
-
+        vl = net.evaluate(Xval,yval)
+        val_loss.append(vl)
 ################################
 # Make directory and save output
 ################################
@@ -190,9 +195,11 @@ if not os.path.exists('./{}'.format(outputDir)):
 net.save('./{}/model.h5'.format(outputDir))
 
 yhat = net.predict(Xval)
-loss = net.evaluate(Xval,yval)
+#loss = net.evaluate(Xval,yval)
 
 np.save("./{}/yhat".format(outputDir),yhat)
+np.save("./{}/loss".format(outputDir),np.asarray(loss))
+np.save("./{}/val_loss".format(outputDir),np.asarray(val_loss))
 
 plot_ids = np.random.choice(yval.shape[0],50)
 for i in plot_ids:
@@ -201,6 +208,12 @@ for i in plot_ids:
     plt.plot(yhat[i], label='prediction')
     plt.legend()
     plt.savefig('./{}/plots/{}'.format(outputDir,i))
+
+plt.figure()
+plt.plot(loss, label="training loss")
+plt.plot(val_loss, label="validation loss")
+plt.legend()
+plt.savefig('./{}/plots/loss'.format(outputDir))
 
 f = open('mse.txt','a')
 f.write('{},{},{},{},{},{}\n'.format(model_str, flankLength,num_layers,Nfilters,Wfilter, loss))

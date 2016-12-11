@@ -4,3 +4,4 @@ predictions/*
 plots/*
 models/*
 *.npy
+run*/*
