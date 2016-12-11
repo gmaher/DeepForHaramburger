@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 
-# font = {'family' : 'normal',
-#         'weight' : 'bold',
-#         'size'   : 22}
-#
-# matplotlib.rc('font', **font)
-# matplotlib.rc('figure',**{'autolayout':True})
+font = {'family' : 'normal',
+        'weight' : 'bold',
+        'size'   : 22}
+
+matplotlib.rc('font', **font)
+matplotlib.rc('figure',**{'autolayout':True})
 
 parser = argparse.ArgumentParser()
 parser.add_argument('seq2seq_dir')
@@ -37,52 +37,48 @@ reader = DataReader(bedfilename, referenceGenome, flankLength, fastaFname,
         bigwigFname)
 
 X,y = reader.getBatch(10000)
+Xneg,yneg = reader.getChromosome(['chr6'],False,True)
 
-print(X.shape)
-print(y.shape)
+def plotxy(X,y):
+    print(X.shape)
+    print(y.shape)
 
-#plt.figure()
-plt.hist(np.ravel(y),bins=50)
-plt.ylabel('no. occurences')
-plt.xlabel('DHS value')
-#plt.tight_layout()
-plt.show()
+    plt.figure()
+    plt.hist(np.ravel(y),bins=50)
+    plt.ylabel('no. occurences')
+    plt.xlabel('DHS value')
+    plt.show()
 
-#plt.figure()
+plt.figure()
 plt.plot(y[:10].T,linewidth=2)
 plt.ylabel('DHS value')
 plt.xlabel('sequence position')
-#plt.tight_layout()
+plt.tight_layout()
 plt.show()
 
-#square root transform
-y = y/np.max(y)
 plt.figure()
-plt.hist(np.ravel(np.sqrt(y)),bins=50)
-plt.ylabel('no. occurences')
-plt.xlabel('DHS value')
-#plt.tight_layout()
-plt.show()
-
-#plt.figure()
 plt.plot(np.sqrt(y[:10].T),linewidth=2)
 plt.ylabel('DHS value')
 plt.xlabel('sequence position')
-#plt.tight_layout()
+plt.tight_layout()
 plt.show()
 
-#asinh + square root transform
-y = y/np.max(y)
-#plt.figure()
-plt.hist(np.ravel(np.sqrt(y)),bins=50)
-plt.ylabel('no. occurences')
-plt.xlabel('DHS value')
-#plt.tight_layout()
-plt.show()
-
-#plt.figure()
-plt.plot(np.sqrt(y[:10].T),linewidth=2)
+plt.figure()
+plt.plot(np.sqrt(y[:10].T/np.max(y)),linewidth=2)
 plt.ylabel('DHS value')
 plt.xlabel('sequence position')
-#plt.tight_layout()
+plt.ylim((0,1))
+plt.tight_layout()
 plt.show()
+
+plt.figure()
+plt.plot(np.sqrt(yneg[:10].T/np.max(y)),linewidth=2)
+plt.ylabel('DHS value')
+plt.xlabel('sequence position')
+plt.ylim((0,1))
+plt.tight_layout()
+plt.show()
+
+plotxy(X,y)
+plotxy(X,np.sqrt(y/np.max(y)))
+plotxy(Xneg,yneg)

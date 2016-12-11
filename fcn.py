@@ -6,31 +6,61 @@ from api.data import DataReader
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
+import os
+import configparser
 
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.layers import Input, Convolution1D, BatchNormalization, Dense, merge
 from keras.layers import Reshape, Flatten, UpSampling2D
 from keras.layers import AveragePooling1D, UpSampling1D, Activation
 from keras.optimizers import Adam
 from keras.regularizers import l2
 
+parser = argparse.ArgumentParser()
+parser.add_argument('seq2seq_dir')
+parser.add_argument('config_file')
+args = parser.parse_args()
+
+dataDir = args.seq2seq_dir
+
+#################################
+#parse config file
+#################################
+config_file = args.config_file
+cp = configparser.ConfigParser()
+cp.read(config_file)
+params = cp['learn_params']
+
 def normalize(y, C):
     y = np.sqrt(y/C)
     y = y.reshape((y.shape[0],y.shape[1],1))
     return y
 
-parser = argparse.ArgumentParser()
-parser.add_argument('seq2seq_dir')
-args = parser.parse_args()
 
-dataDir = args.seq2seq_dir
+Nfilters = int(params['Nfilters'])
+Wfilter = int(params['Wfilter'])
+num_conv= int(params['num_conv'])
+num_layers = int(params['num_layers'])
+l2_reg= int(params['l2_reg'])
+lr = float(params['lr'])
+opt = Adam(lr=lr)
+batch_size=int(params['batch_size'])
+nb_epoch = int(params['nb_epoch'])
+Niter = int(1e3)
+print_step = int(1e1)
+flankLength = int(params['flankLength'])
+model_str = params['model']
+input_shape = (2*flankLength,4)
+outputDir = params['outputDir']
 
+##########################
+# Parse Data
+##########################
 bedfilename = (dataDir+"GM12878_cells/peak/macs2/overlap/"
                 "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
                 "DNase-seq.merged.20bp.filt.50m.pf.pval0.1.500000."
                 "naive_overlap.narrowPeak.gz")
 referenceGenome = 'hg19'
-flankLength = 400
 fastaFname = dataDir+"hg19.fa"
 bigwigFname = (dataDir+"GM12878_cells/signal/macs2/rep1/"
                 "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
@@ -40,20 +70,27 @@ reader = DataReader(bedfilename, referenceGenome, flankLength, fastaFname,
         bigwigFname)
 
 Xtrain,ytrain = reader.getChromosome(['chr6','chr7','chr8'], exclude=True)
+Xtrain_neg,ytrain_neg = reader.getChromosome(['chr6','chr7','chr8'], exclude=True,negative=True)
+
 C = np.max(ytrain)
-#C=1
+
 ytrain = normalize(ytrain,C)
+#ytrain_neg = normalize(ytrain_neg,C)
+#Xtrain = np.vstack((Xtrain,Xtrain_neg))
+#ytrain = np.vstack((ytrain,ytrain_neg))
 print("Xtrain shape = {}, ytrain shape = {}".format(Xtrain.shape,ytrain.shape))
 
-Xval,yval = reader.getChromosome(['chr6'])
+Xval,yval = reader.getChromosome(['chr6','chr7','chr8'])
 yval = normalize(yval,C)
+Xval_neg,yval_neg = reader.getChromosome(['chr6','chr7','chr8'],exclude=False,negative=True)
+yval_neg = normalize(yval_neg,C)
+Xval = np.vstack((Xval,Xval_neg))
+yval = np.vstack((yval,yval_neg))
 print("Xval shape = {}, yval shape = {}".format(Xval.shape,yval.shape))
 
-Xtest,ytest = reader.getChromosome(['chr7','chr8'])
-ytest = normalize(ytest,C)
-print("Xtest shape = {}, ytest shape = {}".format(Xtest.shape,ytest.shape))
-
-#Create neural network
+##############################
+#Neural Network Definitions
+##############################
 def FCN(input_shape=(800,4), Nfilters=32, Wfilter=3,num_conv=3,
 output_channels=1, output_activation='sigmoid', l2_reg=0.0):
     '''
@@ -100,13 +137,16 @@ num_conv=2,output_channels=1, output_activation='sigmoid', pool_length=2, l2_reg
         border_mode='same', W_regularizer=l2(l2_reg), b_regularizer=l2(l2_reg))(x)
 
         if i > 0:
-            outs.append(UpSampling1D(length=pool_length**i)(x))
+            x_up = UpSampling1D(length=pool_length**i)(x)
+            x_up = Convolution1D(Nfilters,Wfilter,input_dim=4,activation='relu',
+            border_mode='same', W_regularizer=l2(l2_reg), b_regularizer=l2(l2_reg))(x_up)
+            outs.append(x_up)
         else:
             outs.append(x)
 
         x = AveragePooling1D(pool_length=pool_length)(x)
 
-    out = merge(outs)
+    out = merge(outs, mode="sum")
 
     out = Convolution1D(output_channels,Wfilter,
     input_dim=4,activation=output_activation, border_mode='same',
@@ -115,20 +155,53 @@ num_conv=2,output_channels=1, output_activation='sigmoid', pool_length=2, l2_reg
     MSFCN = Model(inp,out)
     return MSFCN
 
-input_shape = (2*flankLength,4)
-Nfilters = 32
-Wfilter = 3
-num_conv=2
-num_layers = 4
-l2_reg=0
-lr = 1e-3
-opt = Adam(lr=lr)
-batch_size=32
-nb_epoch = 5
+if model_str == "fcn":
+    net = FCN(input_shape,Nfilters,Wfilter,num_conv,l2_reg=l2_reg)
+if model_str == "msfcn":
+    net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv)
 
-#net = FCN(input_shape,Nfilters,Wfilter,num_conv,l2_reg=l2_reg)
-net = MSFCN(input_shape,Nfilters,Wfilter,num_layers=num_layers,num_conv=num_conv)
 net.compile(optimizer=opt,loss='mse')
 
+#pretrain on positive set
 net.fit(Xtrain,ytrain, batch_size=batch_size, nb_epoch=nb_epoch,
 validation_data=(Xval,yval))
+
+loss = []
+for i in range(Niter):
+    #sample positive and negative batch
+    xpos,ypos = reader.getBatch(batch_size,['chr6','chr7','chr8'])
+    xneg,yneg = reader.getNegativeBatch(batch_size,['chr6','chr7','chr8'])
+    X = np.vstack((xpos,xneg))
+    Y = np.vstack((ypos,yneg))
+    Y = Y.reshape((Y.shape[0],Y.shape[1],1))
+    Y = np.sqrt(Y/C)
+    l = net.train_on_batch(X,Y)
+
+    if i%print_step == 0:
+        print("loss = {}".format(l))
+
+################################
+# Make directory and save output
+################################
+if not os.path.exists('./{}'.format(outputDir)):
+    os.makedirs('./{}'.format(outputDir))
+    os.makedirs('./{}/plots'.format(outputDir))
+
+net.save('./{}/model.h5'.format(outputDir))
+
+yhat = net.predict(Xval)
+loss = net.evaluate(Xval,yval)
+
+np.save("./{}/yhat".format(outputDir),yhat)
+
+plot_ids = np.random.choice(yval.shape[0],50)
+for i in plot_ids:
+    plt.figure()
+    plt.plot(yval[i], label='truth')
+    plt.plot(yhat[i], label='prediction')
+    plt.legend()
+    plt.savefig('./{}/plots/{}'.format(outputDir,i))
+
+f = open('mse.txt','a')
+f.write('{},{},{},{},{},{}\n'.format(model_str, flankLength,num_layers,Nfilters,Wfilter, loss))
+f.close()
