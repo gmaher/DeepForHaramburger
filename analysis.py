@@ -3,13 +3,14 @@ import os
 sys.path.append(os.path.abspath('./api'))
 
 from api.data import DataReader
+import matplotlib
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 import os
 import configparser
 
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.layers import Input, Convolution1D, BatchNormalization, Dense, merge
 from keras.layers import Reshape, Flatten, UpSampling2D
 from keras.layers import AveragePooling1D, UpSampling1D, Activation
@@ -52,7 +53,7 @@ Nfilters = int(params['Nfilters'])
 Wfilter = int(params['Wfilter'])
 num_conv= int(params['num_conv'])
 num_layers = int(params['num_layers'])
-l2_reg= int(params['l2_reg'])
+l2_reg= float(params['l2_reg'])
 lr = float(params['lr'])
 opt = Adam(lr=lr)
 batch_size=int(params['batch_size'])
@@ -88,6 +89,8 @@ ytrain = np.vstack((ytrain_pos, ytrain_neg))
 C = np.max(ytrain_pos)
 
 ytrain = normalize(ytrain,C)
+ytrain_pos = normalize(ytrain_pos,C)
+ytrain_neg = normalize(ytrain_neg,C)
 #ytrain_neg = normalize(ytrain_neg,C)
 #Xtrain = np.vstack((Xtrain,Xtrain_neg))
 #ytrain = np.vstack((ytrain,ytrain_neg))
@@ -111,7 +114,7 @@ val_loss_neg = net.evaluate(Xval_neg,yval_neg)
 val_loss = net.evaluate(Xval,yval)
 
 f = open('mse.txt','a')
-f.write('{},{},{},{},{},{}\n'.format(model_str, flankLength,num_layers,Nfilters,Wfilter,\
+f.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(model_str, flankLength,num_layers,Nfilters,Wfilter,\
  train_loss_pos, train_loss_neg, train_loss, val_loss_pos, val_loss_neg, val_loss))
 f.close()
 
