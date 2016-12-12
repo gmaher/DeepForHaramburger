@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath('./api'))
-#os.environ["CUDA_VISIBLE_DEVICES"]=""
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from api.data import DataReader
 import matplotlib.pyplot as plt
 import argparse
@@ -19,6 +19,7 @@ from keras.layers import MaxPooling1D, AveragePooling1D, UpSampling1D, Activatio
 from keras.optimizers import Adam, RMSprop
 from keras.layers.core import Reshape, Dropout, Highway
 from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.models import load_model
 
 parser = argparse.ArgumentParser()
 parser.add_argument('flankLength')
@@ -45,14 +46,12 @@ def getFullBatch(chrs):
     Y = np.sqrt(Y/C)
     return X,Y
 
-bedfilename = (dataDir+"GM12878_cells/peak/macs2/overlap/"
-                "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
+bedfilename = (dataDir+ "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
                 "DNase-seq.merged.20bp.filt.50m.pf.pval0.1.500000."
                 "naive_overlap.narrowPeak.gz")
 referenceGenome = 'hg19'
 fastaFname = dataDir+"hg19.fa"
-bigwigFname = (dataDir+"GM12878_cells/signal/macs2/rep1/"
-                "E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
+bigwigFname = (dataDir+"E116.GM12878_Lymphoblastoid_Cells.ENCODE.Duke_Crawford."
                 "DNase-seq.merged.20bp.filt.50m.pf.fc.signal.bigwig")
 
 reader = DataReader(bedfilename, referenceGenome, flankLength, fastaFname,
@@ -126,36 +125,44 @@ Wfilter = 5
 num_conv=2
 num_layers = 8
 l2_reg=0
-lr = 0.002
+lr = 0.001
 opt = RMSprop(lr=lr,rho=0.9,epsilon=1e-8)
-batch_size= 128
+batch_size= 32
 nb_epoch = 20
-Niter = 4000
+Niter = 8000
 
 if model_str == "cnnattn":
 	net = CNNAttn(input_shape)
 if model_str == "cnn_lstm":
-	net = cnn_lstm(input_shape)
+	model_path = './models/{}_{}.h5'.format(model_str, flankLength)
+	if os.path.isfile(model_path):
+		net = load_model(model_path)
+	else:
+		net = cnn_lstm(input_shape)
 
 checkpointer = ModelCheckpoint(filepath="./models/{}_{}.h5".format(model_str, flankLength),monitor='val_loss', verbose=1, save_best_only=True)
-callbacks = [
-    EarlyStopping(monitor='val_loss', patience=1, verbose=0)
-]
+callbacks = [EarlyStopping(monitor='val_loss', patience=1, verbose=0), checkpointer]
 
 net.compile(optimizer=opt,loss='mse')
 net.fit(Xtrain,ytrain, batch_size=batch_size, nb_epoch=nb_epoch,
 validation_data=(Xval,yval), callbacks=callbacks)
+
+net = load_model(model_path)
 loss = []
 val_loss = []
+print_step = 100
 for i in range(Niter):
     #sample positive and negative batch
     X,Y = getFullBatch(['chr6','chr7','chr8'])
     l = net.train_on_batch(X,Y)
     loss.append(l)
     if i%print_step == 0:
-        print("loss = {}".format(l))
+        print("loss = {}".format(l)+"\n")
         vl = net.evaluate(Xval,yval)
-        if vl <= val_loss[-1]:
+        print("vl_loss = {}".format(vl)+"\n")
+        if val_loss == []:
+            val_loss.append(vl)
+        elif vl <= val_loss[-1]:
             val_loss.append(vl)
         else:
             break
@@ -178,8 +185,8 @@ np.save("./predictions/{}_FL{}_val_loss".format(model_str, flankLength), np.asar
 #    plt.plot(yval[i], label='truth')
 #    plt.plot(yhat[i], label='prediction')
 #    plt.legend()
-#    plt.savefig('./plots/{}/{}'.format(flankLength,i))
+#    plt.savefig('./plots/{}_{}_{}'.format(model_str,flankLength,i))
 
-f = open('mse.txt','a')
+f = open(model_str+"_"+flankLength+'_mse.txt','w')
 f.write('{},{},{}\n'.format(model_str, flankLength, loss))
 f.close()
