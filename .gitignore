@@ -3,3 +3,5 @@ api/__pycache__
 predictions/*
 plots/*
 models/*
+*.npy
+run*/*
